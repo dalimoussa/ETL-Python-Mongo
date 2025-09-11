@@ -1,0 +1,46 @@
+# Compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Output directories
+output_data/
+test_output/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
