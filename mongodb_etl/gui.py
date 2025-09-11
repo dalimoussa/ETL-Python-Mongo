@@ -29,7 +29,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import ETL components
-from mongodb_etl import MongoDBETL
+from mongodb_etl.mongodb_etl import MongoDBETL
 from mongodb_etl.transformers.data_transformer import DataTransformer
 from mongodb_etl.loaders.data_loader import DataLoader
 from mongodb_etl.extractors.geo_extractor import GeoSpatialExtractor
