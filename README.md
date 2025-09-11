@@ -1,8 +1,8 @@
 # MongoDB ETL
 
-![Build Status](https://img.shields.io/github/workflow/status/yourusername/mongodb-etl/Python%20ETL%20Tests)
+![Build Status](https://img.shields.io/github/workflow/status/dalimoussa/mongodb-etl/Python%20ETL%20Tests)
 ![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
-![License](https://img.shields.io/github/license/yourusername/mongodb-etl)
+![License](https://img.shields.io/github/license/dalimoussa/mongodb-etl)
 
 High-performance Python ETL framework for transforming MongoDB data into structured datasets for machine learning.
 
@@ -21,13 +21,13 @@ High-performance Python ETL framework for transforming MongoDB data into structu
 ### Quick Install
 
 ```bash
-pip install git+https://github.com/yourusername/mongodb-etl.git
+pip install git+https://github.com/dalimoussa/mongodb-etl.git
 ```
 
 ### Development Install
 
 ```bash
-git clone https://github.com/yourusername/mongodb-etl.git
+git clone https://github.com/dalimoussa/mongodb-etl.git
 cd mongodb-etl
 pip install -e .
 ```

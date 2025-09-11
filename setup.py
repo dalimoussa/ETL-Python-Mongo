@@ -10,12 +10,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="mongodb-etl",
     version="0.1.0",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Dali Moussa",
+    author_email="dali@example.com",
     description="High-performance Python ETL framework for transforming MongoDB data into ML datasets",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/mongodb-etl",
+    url="https://github.com/dalimoussa/mongodb-etl",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

@@ -8,7 +8,7 @@ This guide will help you set up and use the MongoDB ETL tool with your own datab
 
 ```powershell
 # Clone the repository
-git clone https://github.com/yourusername/mongodb-etl.git
+git clone https://github.com/dalimoussa/mongodb-etl.git
 cd mongodb-etl
 
 # Create a virtual environment
