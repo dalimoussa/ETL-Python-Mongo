@@ -29,11 +29,23 @@ if __name__ == "__main__":
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import ETL components
-from mongodb_etl.mongodb_etl import MongoDBETL
-from mongodb_etl.transformers.data_transformer import DataTransformer
-from mongodb_etl.loaders.data_loader import DataLoader
-from mongodb_etl.extractors.geo_extractor import GeoSpatialExtractor
-from mongodb_etl.validators.data_validator import DataValidator
+try:
+    # When installed as a package
+    from mongodb_etl import MongoDBETL
+    from mongodb_etl.transformers.data_transformer import DataTransformer
+    from mongodb_etl.loaders.data_loader import DataLoader
+    from mongodb_etl.extractors.geo_extractor import GeoSpatialExtractor
+    from mongodb_etl.validators.data_validator import DataValidator
+except ImportError:
+    # When running from source
+    import sys
+    import os
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from mongodb_etl.mongodb_etl import MongoDBETL
+    from mongodb_etl.extractors.geo_extractor import GeoSpatialExtractor
+    from mongodb_etl.transformers.data_transformer import DataTransformer
+    from mongodb_etl.loaders.data_loader import DataLoader
+    from mongodb_etl.validators.data_validator import DataValidator
 
 class MongoDBETLApp(tk.Tk):
     """
@@ -55,6 +67,14 @@ class MongoDBETLApp(tk.Tk):
         except:
             pass
         
+        # Status variables - initialize these first
+        self.status_var = tk.StringVar(value="Ready")
+        self.progress_var = tk.DoubleVar(value=0)
+        
+        # Keep track of last output file
+        self.last_output_file = None
+        self.last_output_format = None
+        
         # MongoDB connection variables
         self.uri_var = tk.StringVar(value="mongodb://localhost:27017/")
         self.db_var = tk.StringVar()
@@ -72,29 +92,27 @@ class MongoDBETLApp(tk.Tk):
         self.geo_field_var = tk.StringVar()
         self.use_geo_var = tk.BooleanVar(value=False)
         
-        # Create the main interface
-        self._create_widgets()
-        self._setup_layout()
-        
-        # Status variables
-        self.status_var = tk.StringVar(value="Ready")
-        self.progress_var = tk.DoubleVar(value=0)
-    
-    def _create_widgets(self):
-        """Create all the widgets for the application."""
-        # Main notebook for tabbed interface
+        # Create the notebook
         self.notebook = ttk.Notebook(self)
-        
-        # Create tabs
         self.connection_tab = ttk.Frame(self.notebook)
         self.data_tab = ttk.Frame(self.notebook)
         self.output_tab = ttk.Frame(self.notebook)
         self.execution_tab = ttk.Frame(self.notebook)
+        self.output_viewer_tab = ttk.Frame(self.notebook)
         
         self.notebook.add(self.connection_tab, text="Connection")
         self.notebook.add(self.data_tab, text="Data Selection")
         self.notebook.add(self.output_tab, text="Output Settings")
         self.notebook.add(self.execution_tab, text="Run ETL")
+        self.notebook.add(self.output_viewer_tab, text="Output Viewer")
+        
+        # Create the main interface
+        self._create_widgets()
+        self._setup_layout()
+    
+    def _create_widgets(self):
+        """Create all the widgets for the application."""
+        # Main notebook and tabs were created in __init__
         
         # ------ Connection Tab ------
         # MongoDB URI input
@@ -180,9 +198,15 @@ class MongoDBETLApp(tk.Tk):
         self.run_btn = ttk.Button(self.execution_tab, text="Run ETL Process", command=self.run_etl, state="disabled")
         self.run_btn.grid(row=3, column=1, padx=10, pady=10)
         
-        # Open output folder button
-        ttk.Button(self.execution_tab, text="Open Output Folder", 
-                    command=lambda: os.startfile(self.output_dir_var.get())).grid(row=3, column=0, padx=10, pady=10)
+        # Buttons for output management
+        button_frame = ttk.Frame(self.execution_tab)
+        button_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="w")
+        
+        ttk.Button(button_frame, text="Open Output Folder", 
+                  command=lambda: os.startfile(self.output_dir_var.get())).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame, text="View Output File", 
+                  command=lambda: self._display_last_output_file()).pack(side=tk.LEFT, padx=5)
     
     def _setup_layout(self):
         """Set up the main layout for the application."""
@@ -216,7 +240,7 @@ class MongoDBETLApp(tk.Tk):
         
         try:
             # Create a temporary ETL object to test connection
-            temp_etl = MongoDBETL("test", {"uri": uri})
+            temp_etl = MongoDBETL("test", custom_config={"uri": uri})
             
             # Get list of databases
             dbs = temp_etl.client.list_database_names()
@@ -255,7 +279,7 @@ class MongoDBETLApp(tk.Tk):
         
         try:
             # Create a temporary ETL object to get collections
-            temp_etl = MongoDBETL("test", {"uri": uri, "database": db_name})
+            temp_etl = MongoDBETL("test", custom_config={"uri": uri, "database": db_name})
             
             # Get list of collections
             self.collections = temp_etl.client[db_name].list_collection_names()
@@ -283,7 +307,7 @@ class MongoDBETLApp(tk.Tk):
             collection_name = self.selected_collection.get()
             
             # Create ETL object for preview
-            etl = MongoDBETL(collection_name, {"uri": uri, "database": db_name})
+            etl = MongoDBETL(collection_name, custom_config={"uri": uri, "database": db_name})
             
             # Parse query filter if provided
             query_filter = {}
@@ -400,15 +424,16 @@ class MongoDBETLApp(tk.Tk):
             if self.use_geo_var.get() and self.geo_field_var.get():
                 # Use geospatial extractor
                 self.log_message(f"Using geospatial extractor with field: {self.geo_field_var.get()}")
+                # Handle GeoSpatialExtractor initialization according to its signature
                 etl = GeoSpatialExtractor(
                     collection_name=collection_name,
                     geo_field=self.geo_field_var.get(),
-                    config={"uri": uri, "database": db_name}
+                    custom_config={"uri": uri, "database": db_name}
                 )
             else:
                 etl = MongoDBETL(
                     collection_name=collection_name,
-                    config={"uri": uri, "database": db_name}
+                    custom_config={"uri": uri, "database": db_name}
                 )
             
             # Initialize transformer and loader
@@ -430,38 +455,50 @@ class MongoDBETLApp(tk.Tk):
             
             # Define transformation function
             def transform_func(docs):
-                return transformer.transform_documents(docs)
+                try:
+                    return transformer.transform_documents(docs)
+                except Exception as e:
+                    self.log_message(f"Transform error: {str(e)}")
+                    return docs  # Return original docs if transformation fails
             
             # Define load function based on output format
             def load_func(transformed_docs):
-                filename = f"{collection_name}_export"
-                
-                if output_format == "json":
-                    return loader.save_to_json(transformed_docs, filename)
-                elif output_format == "csv":
-                    return loader.save_to_csv(transformed_docs, filename)
-                elif output_format == "parquet":
-                    return loader.save_to_parquet(transformed_docs, filename)
+                try:
+                    filename = f"{collection_name}_export"
+                    
+                    if output_format == "json":
+                        return loader.save_to_json(transformed_docs, filename)
+                    elif output_format == "csv":
+                        return loader.save_to_csv(transformed_docs, filename)
+                    elif output_format == "parquet":
+                        return loader.save_to_parquet(transformed_docs, filename)
+                except Exception as e:
+                    self.log_message(f"Load error: {str(e)}")
+                    return None
             
             # Process the data
             self.log_message("Processing data in batches...")
             self.progress_var.set(60)
             
-            # Set up a callback for progress updates
-            def progress_callback(batch_num, total_docs, total_batches=None):
-                if total_batches:
-                    progress = 60 + (batch_num / total_batches) * 30
-                    self.progress_var.set(progress)
-                    self.log_message(f"Processed batch {batch_num}/{total_batches} ({total_docs} documents)")
+            # Process data - using batch_size from ETL object
+            batch_count = 0
+            doc_count = 0
             
-            # Process data
-            stats = etl.process_in_batches(
-                cursor=cursor,
-                transform_func=transform_func,
-                load_func=load_func,
-                batch_size=1000,
-                progress_callback=progress_callback
-            )
+            for batch in etl.get_batches(cursor):
+                transformed_batch = transform_func(batch)
+                load_func(transformed_batch)
+                batch_count += 1
+                doc_count += len(batch)
+                
+                # Update progress
+                progress = 60 + (min(batch_count, 10) / 10) * 30
+                self.progress_var.set(progress)
+                self.log_message(f"Processed batch {batch_count} ({doc_count} documents)")
+            
+            stats = {
+                "docs_processed": doc_count,
+                "batch_count": batch_count
+            }
             
             # If split option is selected, split the data
             if split_data:
@@ -501,6 +538,9 @@ class MongoDBETLApp(tk.Tk):
             # Show completion message
             messagebox.showinfo("ETL Complete", f"Successfully processed {stats['docs_processed']} documents.")
             
+            # Display the output file
+            self._display_output_file(output_format, collection_name)
+            
         except Exception as e:
             self.log_message(f"ETL error: {str(e)}")
             messagebox.showerror("ETL Error", f"Failed to process data: {str(e)}")
@@ -509,6 +549,147 @@ class MongoDBETLApp(tk.Tk):
         finally:
             # Re-enable run button
             self.run_btn.config(state="normal")
+
+    def _display_output_file(self, output_format, collection_name):
+        """Display the output file in the output viewer tab."""
+        try:
+            # Determine file path based on format
+            output_dir = self.output_dir_var.get()
+            filename = f"{collection_name}_export"
+            
+            if output_format == "json":
+                file_path = os.path.join(output_dir, f"{filename}.json")
+            elif output_format == "csv":
+                file_path = os.path.join(output_dir, f"{filename}.csv")
+            elif output_format == "parquet":
+                file_path = os.path.join(output_dir, f"{filename}.parquet")
+            else:
+                self.log_message(f"Unknown output format: {output_format}")
+                return
+            
+            # Store for later access
+            self.last_output_file = file_path
+            self.last_output_format = output_format
+            
+            # Display the file
+            self._show_file_in_viewer(file_path, output_format)
+            
+            # Switch to the output viewer tab
+            self.notebook.select(2)  # Index 2 should be the Output Viewer tab
+            
+            self.log_message(f"Displayed output file: {file_path}")
+            
+        except Exception as e:
+            self.log_message(f"Error displaying output file: {str(e)}")
+    
+    def _display_last_output_file(self):
+        """Display the last output file that was generated."""
+        if self.last_output_file and os.path.exists(self.last_output_file):
+            self._show_file_in_viewer(self.last_output_file, self.last_output_format)
+            self.notebook.select(2)  # Switch to output viewer tab
+        else:
+            messagebox.showinfo("No Output File", "No output file has been generated yet.")
+    
+    def _show_file_in_viewer(self, file_path, file_format):
+        """Display a file in the output viewer based on its format."""
+        try:
+            # Clear previous content
+            for widget in self.output_viewer_frame.winfo_children():
+                widget.destroy()
+            
+            # Create header with file info
+            header_frame = ttk.Frame(self.output_viewer_frame)
+            header_frame.pack(fill=tk.X, padx=10, pady=5)
+            
+            ttk.Label(header_frame, text=f"File: {os.path.basename(file_path)}",
+                     font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+            
+            ttk.Label(header_frame, text=f"Format: {file_format.upper()}").pack(side=tk.LEFT, padx=20)
+            
+            ttk.Button(header_frame, text="Refresh", 
+                      command=lambda: self._show_file_in_viewer(file_path, file_format)).pack(side=tk.RIGHT, padx=5)
+            
+            # Create content viewer with scrollbars
+            content_frame = ttk.Frame(self.output_viewer_frame)
+            content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+            
+            # Add vertical scrollbar
+            v_scroll = ttk.Scrollbar(content_frame, orient="vertical")
+            v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # Add horizontal scrollbar
+            h_scroll = ttk.Scrollbar(content_frame, orient="horizontal")
+            h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+            
+            # Create text widget for viewing content
+            content_view = tk.Text(content_frame, wrap=tk.NONE, 
+                                  yscrollcommand=v_scroll.set,
+                                  xscrollcommand=h_scroll.set)
+            content_view.pack(fill=tk.BOTH, expand=True)
+            
+            # Configure scrollbars
+            v_scroll.config(command=content_view.yview)
+            h_scroll.config(command=content_view.xview)
+            
+            # Load and display file content based on format
+            if file_format == "json":
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    try:
+                        # Try to load and pretty-print JSON
+                        data = json.load(f)
+                        content = json.dumps(data, indent=2)
+                    except json.JSONDecodeError:
+                        # If that fails, just show the raw file
+                        f.seek(0)
+                        content = f.read()
+                
+                content_view.insert(tk.END, content)
+                
+            elif file_format == "csv":
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                content_view.insert(tk.END, content)
+                
+            elif file_format == "parquet":
+                try:
+                    # Use pandas to read parquet and display as text
+                    import pandas as pd
+                    df = pd.read_parquet(file_path)
+                    content_view.insert(tk.END, df.to_string())
+                except Exception as e:
+                    content_view.insert(tk.END, f"Unable to display Parquet file: {str(e)}\n\n"
+                                              f"Parquet files are binary and require pandas to view.")
+            
+            # Make text widget read-only
+            content_view.config(state="disabled")
+            
+            # Add status bar with file info
+            status_frame = ttk.Frame(self.output_viewer_frame)
+            status_frame.pack(fill=tk.X, padx=10, pady=5)
+            
+            # Show file size
+            file_size = os.path.getsize(file_path)
+            size_text = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
+            
+            ttk.Label(status_frame, text=f"Size: {size_text}").pack(side=tk.LEFT)
+            
+            # Add timestamp
+            mod_time = os.path.getmtime(file_path)
+            import datetime
+            timestamp = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+            ttk.Label(status_frame, text=f"Last Modified: {timestamp}").pack(side=tk.RIGHT)
+            
+        except Exception as e:
+            # Create a simple error message if viewing fails
+            for widget in self.output_viewer_frame.winfo_children():
+                widget.destroy()
+                
+            error_label = ttk.Label(self.output_viewer_frame, 
+                                   text=f"Error displaying file: {str(e)}", 
+                                   foreground="red")
+            error_label.pack(padx=20, pady=20)
+            
+            self.log_message(f"Error in file viewer: {str(e)}")
 
 def main():
     """Main entry point for the GUI application."""
