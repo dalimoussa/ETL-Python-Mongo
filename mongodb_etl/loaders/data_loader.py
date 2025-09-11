@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Any, Optional, Union
 import pandas as pd
 
-from config.config import OUTPUT_FORMATS
+from mongodb_etl.config.config import OUTPUT_FORMATS
 
 logger = logging.getLogger(__name__)
 
