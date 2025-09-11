@@ -15,7 +15,7 @@ setup(
     description="High-performance Python ETL framework for transforming MongoDB data into ML datasets",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/dalimoussa/mongodb-etl",
+    url="https://github.com/dalimoussa/ETL-Python-Mongo",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -41,6 +41,7 @@ setup(
         "python-dotenv>=0.19.0",
         "jsonschema>=4.0.0",
         "psutil>=5.8.0",
+        "tk>=0.1.0",  # For GUI support
     ],
     extras_require={
         "dev": [
@@ -54,6 +55,7 @@ setup(
     entry_points={
         "console_scripts": [
             "mongodb-etl=mongodb_etl.main:main",
+            "mongodb-etl-gui=mongodb_etl.gui:main",
         ],
     },
 )
