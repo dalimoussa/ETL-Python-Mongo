@@ -11,11 +11,11 @@ import logging
 import json
 from dotenv import load_dotenv
 
-from mongodb_etl import MongoDBETL
-from extractors.geo_extractor import GeoSpatialExtractor
-from transformers.data_transformer import DataTransformer
-from loaders.data_loader import DataLoader
-from validators.data_validator import DataValidator
+from .. import MongoDBETL
+from ..extractors.geo_extractor import GeoSpatialExtractor
+from ..transformers.data_transformer import DataTransformer
+from ..loaders.data_loader import DataLoader
+from ..validators.data_validator import DataValidator
 
 # Configure logging
 logging.basicConfig(

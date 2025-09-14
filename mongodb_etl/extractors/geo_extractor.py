@@ -8,8 +8,8 @@ import time
 from pymongo.cursor import Cursor
 from pymongo.errors import OperationFailure
 
-from mongodb_etl import MongoDBETL
-from config.config import GEOSPATIAL_CONFIG
+from .. import MongoDBETL
+from ..config.config import GEOSPATIAL_CONFIG
 
 logger = logging.getLogger(__name__)
 

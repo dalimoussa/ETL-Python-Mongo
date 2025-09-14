@@ -105,6 +105,8 @@ class MongoDBETLApp(tk.Tk):
         self.notebook.add(self.output_tab, text="Output Settings")
         self.notebook.add(self.execution_tab, text="Run ETL")
         self.notebook.add(self.output_viewer_tab, text="Output Viewer")
+        # Alias for viewer content container used elsewhere in the code
+        self.output_viewer_frame = self.output_viewer_tab
         
         # Create the main interface
         self._create_widgets()
@@ -575,7 +577,7 @@ class MongoDBETLApp(tk.Tk):
             self._show_file_in_viewer(file_path, output_format)
             
             # Switch to the output viewer tab
-            self.notebook.select(2)  # Index 2 should be the Output Viewer tab
+            self.notebook.select(self.output_viewer_tab)
             
             self.log_message(f"Displayed output file: {file_path}")
             
@@ -586,7 +588,7 @@ class MongoDBETLApp(tk.Tk):
         """Display the last output file that was generated."""
         if self.last_output_file and os.path.exists(self.last_output_file):
             self._show_file_in_viewer(self.last_output_file, self.last_output_format)
-            self.notebook.select(2)  # Switch to output viewer tab
+            self.notebook.select(self.output_viewer_tab)  # Switch to output viewer tab
         else:
             messagebox.showinfo("No Output File", "No output file has been generated yet.")
     

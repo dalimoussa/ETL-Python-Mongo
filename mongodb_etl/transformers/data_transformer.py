@@ -8,7 +8,7 @@ import pandas as pd
 from typing import Dict, List, Any, Optional, Union, Callable
 from datetime import datetime
 
-from config.config import VALIDATION_CONFIG
+from ..config.config import VALIDATION_CONFIG
 
 logger = logging.getLogger(__name__)
 

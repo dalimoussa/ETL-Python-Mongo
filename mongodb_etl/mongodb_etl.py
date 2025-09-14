@@ -11,7 +11,7 @@ from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from config.config import MONGODB_CONFIG, PROCESSING_CONFIG
+from .config.config import MONGODB_CONFIG, PROCESSING_CONFIG
 
 # Configure logging
 logging.basicConfig(
@@ -65,6 +65,29 @@ class MongoDBETL:
         except Exception as e:
             logger.error(f"Failed to connect to MongoDB: {str(e)}")
             raise
+
+    def get_batches(self, cursor: Cursor, batch_size: Optional[int] = None):
+        """
+        Yield documents from a cursor in lists (batches).
+
+        Args:
+            cursor: MongoDB cursor to iterate over
+            batch_size: Optional batch size override; defaults to self.batch_size
+
+        Yields:
+            List[Dict[str, Any]]: Next batch of documents
+        """
+        size = batch_size or self.batch_size
+        current_batch: List[Dict[str, Any]] = []
+
+        for doc in cursor:
+            current_batch.append(doc)
+            if len(current_batch) >= size:
+                yield current_batch
+                current_batch = []
+
+        if current_batch:
+            yield current_batch
     
     def extract(self, query: Dict[str, Any] = None, projection: Dict[str, Any] = None) -> Cursor:
         """
