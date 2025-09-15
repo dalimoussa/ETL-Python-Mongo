@@ -1,192 +1,135 @@
-# MongoDB ETL
+# MongoDB ETL Tool
 
-![Build Status](https://img.shields.io/github/workflow/status/dalimoussa/mongodb-etl/Python%20ETL%20Tests)
-![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
-![License](https://img.shields.io/github/license/dalimoussa/mongodb-etl)
+A simple Python tool to extract data from MongoDB and save it in different formats (JSON, CSV, Parquet) for data analysis and machine learning.
 
-High-performance Python ETL framework for transforming MongoDB data into structured datasets for machine learning.
+## What it does
 
-## Features
+- Connects to MongoDB and extracts data from collections
+- Cleans and transforms your data automatically 
+- Saves data in formats ready for analysis (JSON, CSV, Parquet)
+- Splits data into training/validation/test sets for machine learning
+- Works with both a visual interface (GUI) and command line
+- Handles geospatial data and complex queries
 
-- **MongoDB Integration** - Optimized data extraction with geospatial query support
-- **Parallel Processing** - Process data in batches or parallel for optimal performance
-- **Flexible Transformations** - Data cleaning, normalization, and feature engineering
-- **Multiple Output Formats** - Export to JSON, CSV, and Parquet formats
-- **ML-Ready Datasets** - Automatic train/validation/test splitting
-- **Validation & Testing** - Data quality validation and schema verification
-- **Modular Architecture** - Easy to extend and customize components
+## Quick Start
 
-## Installation
-
-### Quick Install
+### 1. Install
 
 ```bash
-pip install git+https://github.com/dalimoussa/mongodb-etl.git
-```
+# Clone the project
+git clone https://github.com/dalimoussa/ETL-Python-Mongo.git
+cd ETL-Python-Mongo
 
-### Development Install
+# Create virtual environment
+python -m venv .venv
 
-```bash
-git clone https://github.com/dalimoussa/mongodb-etl.git
-cd mongodb-etl
+# Activate virtual environment (Windows)
+.\.venv\Scripts\Activate.ps1
+
+# Install the tool
 pip install -e .
 ```
 
-### Requirements
-
-- Python 3.8+
-- MongoDB 4.0+
-- Dependencies:
-  - pymongo
-  - pandas
-  - numpy
-  - pyarrow (for Parquet support)
-
-## Usage
-
-### Command-Line Interface
-
-The package provides a command-line interface for easy use:
+### 2. Run the Visual Interface (Easiest)
 
 ```bash
-# Basic usage
-python -m mongodb_etl.main --collection your_collection --output-dir output
-
-# With query filter
-python -m mongodb_etl.main --collection your_collection --query '{"status": "active"}' --output-format json
-
-# Geospatial data
-python -m mongodb_etl.main --collection locations --geo-field coordinates --parallel --split
+mongodb-etl-gui
 ```
 
-### Basic ETL Pipeline
+1. **Connect**: Enter your MongoDB connection details
+2. **Select Data**: Choose a collection and set filters  
+3. **Choose Output**: Pick format (JSON/CSV/Parquet) and location
+4. **Run**: Click "Run ETL Process" and wait for completion
 
-```python
-from mongodb_etl import MongoDBETL
-from mongodb_etl.transformers.data_transformer import DataTransformer
-from mongodb_etl.loaders.data_loader import DataLoader
+### 3. Use Command Line
 
-# Initialize ETL components
-etl = MongoDBETL("your_collection")
-transformer = DataTransformer()
-loader = DataLoader("output_directory")
+```bash
+# Show all options
+mongodb-etl --help
 
-# Extract data
-cursor = etl.extract({"status": "active"})
+# Extract a collection to JSON
+mongodb-etl --collection my_collection --output-dir ./results
 
-# Define transformation function
-def transform_func(docs):
-    return transformer.transform_documents(docs)
-
-# Define load function
-def load_func(transformed_docs):
-    loader.save_to_json(transformed_docs, "processed_data")
-
-# Process data in batches
-stats = etl.process_in_batches(cursor, transform_func, load_func)
-print(f"Processed {stats['docs_processed']} documents")
-
-# Close MongoDB connection
-etl.close()
+# Extract with filters to CSV
+mongodb-etl --collection users --query '{"status":"active"}' --output-format csv
 ```
 
-### Geospatial ETL Pipeline
+## Configuration
 
-```python
-from mongodb_etl.extractors.geo_extractor import GeoSpatialExtractor
-from mongodb_etl.transformers.data_transformer import DataTransformer
-from mongodb_etl.loaders.data_loader import DataLoader
+The tool connects to `mongodb://localhost:27017` by default. To use a different database:
 
-# Initialize geospatial extractor
-geo_extractor = GeoSpatialExtractor("locations", "coordinates")
-
-# Extract locations near a point (longitude, latitude)
-cursor = geo_extractor.extract_near(
-    point=[-73.9857, 40.7484],  # NYC coordinates
-    max_distance=5000  # 5 kilometers
-)
-
-# Define transformation function
-def transform_func(docs):
-    # Apply standard transformations
-    transformed_docs = transformer.transform_documents(docs)
-    
-    # Add geospatial features
-    return transformer.process_geospatial_features(
-        transformed_docs, 
-        "coordinates",
-        [-73.9857, 40.7484]  # Reference point
-    )
-
-# Define load function
-def load_func(transformed_docs):
-    loader.save_to_parquet(transformed_docs, "geo_features")
-
-# Process data in parallel
-transformer = DataTransformer()
-loader = DataLoader("ml_datasets")
-stats = geo_extractor.process_parallel(cursor, transform_func, load_func)
-
-print(f"Processed {stats['docs_processed']} documents in {stats['total_time_seconds']:.2f}s")
+### Option 1: Environment File
+Create a `.env` file in the project folder:
+```
+MONGODB_URI=mongodb://username:password@your-server:27017
+MONGODB_DATABASE=your_database_name
 ```
 
-### Data Validation
+### Option 2: Set Environment Variables
+```bash
+# Windows PowerShell
+$env:MONGODB_URI = "mongodb://username:password@your-server:27017"
+$env:MONGODB_DATABASE = "your_database_name"
+```
 
-```python
-from mongodb_etl.validators.data_validator import DataValidator
+## Common Use Cases
 
-# Initialize validator
-validator = DataValidator()
+### Extract all data from a collection
+```bash
+mongodb-etl --collection products --output-dir ./data
+```
 
-# Load schema from file
-validator.load_schema_from_file("schemas/data_schema.json")
+### Extract with filters
+```bash
+mongodb-etl --collection orders --query '{"date":{"$gte":"2024-01-01"}}' --output-format csv
+```
 
-# Validate data against schema
-is_valid, errors = validator.validate_schema(documents)
-if not is_valid:
-    print(f"Found {len(errors)} schema validation errors")
-    
-# Generate data profile
-profile = validator.generate_data_profile(documents)
-print(f"Data profile: {profile}")
+### Create ML training sets
+```bash
+mongodb-etl --collection customers --split --output-format parquet
+```
+This creates train.parquet, validation.parquet, and test.parquet files.
+
+### Work with location data
+```bash
+mongodb-etl --collection stores --geo-field coordinates --output-format json
+```
+
+## Requirements
+
+- Python 3.8 or newer
+- MongoDB database (local or remote)
+- Windows, Mac, or Linux
+
+## Troubleshooting
+
+**"Python was not found"**: Make sure you activated the virtual environment first:
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+**Can't connect to MongoDB**: Check your connection string in the `.env` file or environment variables.
+
+**GUI won't start**: Try the module version:
+```bash
+python -m mongodb_etl.gui
 ```
 
 ## Project Structure
 
 ```
 mongodb_etl/
-├── __init__.py
-├── config.py
-├── main.py
-├── mongodb_etl.py
-├── extractors/
-│   ├── __init__.py
-│   └── geo_extractor.py
-├── transformers/
-│   ├── __init__.py
-│   └── data_transformer.py
-├── loaders/
-│   ├── __init__.py
-│   └── data_loader.py
-├── validators/
-│   ├── __init__.py
-│   └── data_validator.py
-├── utils/
-│   ├── __init__.py
-│   └── performance_utils.py
-├── examples/
-│   ├── basic_example.py
-│   └── geospatial_example.py
-└── tests/
-    ├── __init__.py
-    ├── test_mongodb_etl.py
-    └── test_integration.py
+├── extractors/     # MongoDB data extraction
+├── transformers/   # Data cleaning and processing  
+├── loaders/        # Save data in different formats
+├── validators/     # Data quality checks
+└── examples/       # Sample scripts
 ```
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file.

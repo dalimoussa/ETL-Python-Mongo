@@ -595,9 +595,21 @@ class MongoDBETLApp(tk.Tk):
     def _show_file_in_viewer(self, file_path, file_format):
         """Display a file in the output viewer based on its format."""
         try:
-            # Clear previous content
-            for widget in self.output_viewer_frame.winfo_children():
-                widget.destroy()
+            # Clear previous content safely
+            for widget in list(self.output_viewer_frame.winfo_children()):
+                try:
+                    widget.destroy()
+                except tk.TclError:
+                    # Widget already destroyed, continue
+                    pass
+            
+            # Check if file exists
+            if not os.path.exists(file_path):
+                error_label = ttk.Label(self.output_viewer_frame, 
+                                       text=f"File not found: {os.path.basename(file_path)}", 
+                                       foreground="red")
+                error_label.pack(padx=20, pady=20)
+                return
             
             # Create header with file info
             header_frame = ttk.Frame(self.output_viewer_frame)
@@ -615,76 +627,90 @@ class MongoDBETLApp(tk.Tk):
             content_frame = ttk.Frame(self.output_viewer_frame)
             content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             
+            # Configure grid layout for proper scrollbar positioning
+            content_frame.grid_rowconfigure(0, weight=1)
+            content_frame.grid_columnconfigure(0, weight=1)
+            
+            # Create text widget for viewing content
+            content_view = tk.Text(content_frame, wrap=tk.NONE)
+            content_view.grid(row=0, column=0, sticky="nsew")
+            
             # Add vertical scrollbar
             v_scroll = ttk.Scrollbar(content_frame, orient="vertical")
-            v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+            v_scroll.grid(row=0, column=1, sticky="ns")
             
             # Add horizontal scrollbar
             h_scroll = ttk.Scrollbar(content_frame, orient="horizontal")
-            h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+            h_scroll.grid(row=1, column=0, sticky="ew")
             
-            # Create text widget for viewing content
-            content_view = tk.Text(content_frame, wrap=tk.NONE, 
-                                  yscrollcommand=v_scroll.set,
-                                  xscrollcommand=h_scroll.set)
-            content_view.pack(fill=tk.BOTH, expand=True)
-            
-            # Configure scrollbars
+            # Connect scrollbars to text widget
+            content_view.config(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
             v_scroll.config(command=content_view.yview)
             h_scroll.config(command=content_view.xview)
             
             # Load and display file content based on format
-            if file_format == "json":
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    try:
-                        # Try to load and pretty-print JSON
-                        data = json.load(f)
-                        content = json.dumps(data, indent=2)
-                    except json.JSONDecodeError:
-                        # If that fails, just show the raw file
-                        f.seek(0)
+            try:
+                if file_format == "json":
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        try:
+                            # Try to load and pretty-print JSON
+                            data = json.load(f)
+                            content = json.dumps(data, indent=2, default=str)
+                        except json.JSONDecodeError:
+                            # If that fails, just show the raw file
+                            f.seek(0)
+                            content = f.read()
+                    
+                    content_view.insert(tk.END, content)
+                    
+                elif file_format == "csv":
+                    with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
+                    content_view.insert(tk.END, content)
+                    
+                elif file_format == "parquet":
+                    try:
+                        # Use pandas to read parquet and display as text
+                        import pandas as pd
+                        df = pd.read_parquet(file_path)
+                        content_view.insert(tk.END, df.to_string())
+                    except Exception as e:
+                        content_view.insert(tk.END, f"Unable to display Parquet file: {str(e)}\n\n"
+                                                  f"Parquet files are binary and require pandas to view.")
                 
-                content_view.insert(tk.END, content)
+                # Make text widget read-only
+                content_view.config(state="disabled")
                 
-            elif file_format == "csv":
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                content_view.insert(tk.END, content)
+                # Add status bar with file info
+                status_frame = ttk.Frame(self.output_viewer_frame)
+                status_frame.pack(fill=tk.X, padx=10, pady=5)
                 
-            elif file_format == "parquet":
-                try:
-                    # Use pandas to read parquet and display as text
-                    import pandas as pd
-                    df = pd.read_parquet(file_path)
-                    content_view.insert(tk.END, df.to_string())
-                except Exception as e:
-                    content_view.insert(tk.END, f"Unable to display Parquet file: {str(e)}\n\n"
-                                              f"Parquet files are binary and require pandas to view.")
-            
-            # Make text widget read-only
-            content_view.config(state="disabled")
-            
-            # Add status bar with file info
-            status_frame = ttk.Frame(self.output_viewer_frame)
-            status_frame.pack(fill=tk.X, padx=10, pady=5)
-            
-            # Show file size
-            file_size = os.path.getsize(file_path)
-            size_text = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
-            
-            ttk.Label(status_frame, text=f"Size: {size_text}").pack(side=tk.LEFT)
-            
-            # Add timestamp
-            mod_time = os.path.getmtime(file_path)
-            import datetime
-            timestamp = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
-            ttk.Label(status_frame, text=f"Last Modified: {timestamp}").pack(side=tk.RIGHT)
+                # Show file size
+                file_size = os.path.getsize(file_path)
+                size_text = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
+                
+                ttk.Label(status_frame, text=f"Size: {size_text}").pack(side=tk.LEFT)
+                
+                # Add timestamp
+                mod_time = os.path.getmtime(file_path)
+                import datetime
+                timestamp = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+                ttk.Label(status_frame, text=f"Last Modified: {timestamp}").pack(side=tk.RIGHT)
+                
+            except Exception as file_error:
+                content_view.insert(tk.END, f"Error reading file: {str(file_error)}")
+                content_view.config(state="disabled")
             
         except Exception as e:
             # Create a simple error message if viewing fails
-            for widget in self.output_viewer_frame.winfo_children():
-                widget.destroy()
+            try:
+                for widget in list(self.output_viewer_frame.winfo_children()):
+                    try:
+                        widget.destroy()
+                    except tk.TclError:
+                        pass
+            except:
+                pass
                 
             error_label = ttk.Label(self.output_viewer_frame, 
                                    text=f"Error displaying file: {str(e)}", 

@@ -44,23 +44,116 @@ class DataTransformer:
         if not documents:
             return []
         
+        # Clean and normalize data for pandas/parquet compatibility
+        processed_docs = []
+        for doc in documents:
+            try:
+                processed_doc = self._clean_document_for_pandas(doc)
+                processed_docs.append(processed_doc)
+            except Exception as e:
+                logger.warning(f"Error processing document: {str(e)}, skipping")
+                continue
+        
+        if not processed_docs:
+            return []
+        
         # Convert to pandas DataFrame for efficient processing
-        df = pd.DataFrame(documents)
+        try:
+            df = pd.DataFrame(processed_docs)
+            
+            # Apply basic cleaning
+            df = self._clean_dataframe(df)
+            
+            # Apply normalization
+            df = self._normalize_dataframe(df)
+            
+            # Handle missing values
+            df = self._handle_missing_values(df)
+            
+            # Detect and handle outliers
+            df = self._handle_outliers(df)
+            
+            # Convert back to list of dictionaries
+            return df.to_dict('records')
+            
+        except Exception as e:
+            logger.warning(f"DataFrame processing failed: {str(e)}, returning cleaned documents without advanced processing")
+            return processed_docs
+    
+    def _clean_document_for_pandas(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Clean a single document to make it compatible with pandas and parquet.
         
-        # Apply basic cleaning
-        df = self._clean_dataframe(df)
+        Args:
+            doc: MongoDB document to clean
+            
+        Returns:
+            Cleaned document safe for pandas DataFrame creation
+        """
+        cleaned = {}
         
-        # Apply normalization
-        df = self._normalize_dataframe(df)
+        for key, value in doc.items():
+            # Convert ObjectId to string
+            if hasattr(value, '__class__') and value.__class__.__name__ == 'ObjectId':
+                cleaned[key] = str(value)
+            # Handle nested dictionaries - convert to JSON string for pandas compatibility
+            elif isinstance(value, dict):
+                # Always convert dicts to strings to avoid unhashable type errors
+                cleaned[key] = str(value)
+            # Handle lists - process each item
+            elif isinstance(value, list):
+                try:
+                    cleaned_list = []
+                    for item in value:
+                        if hasattr(item, '__class__') and item.__class__.__name__ == 'ObjectId':
+                            cleaned_list.append(str(item))
+                        elif isinstance(item, (dict, list)):
+                            # Convert complex nested items to strings
+                            cleaned_list.append(str(item))
+                        else:
+                            cleaned_list.append(item)
+                    # If list contains any complex types, convert whole list to string
+                    if any(isinstance(item, (dict, list)) for item in value):
+                        cleaned[key] = str(value)
+                    else:
+                        cleaned[key] = cleaned_list
+                except Exception:
+                    # If processing fails, convert entire list to string
+                    cleaned[key] = str(value)
+            # Handle datetime objects
+            elif hasattr(value, '__class__') and 'datetime' in value.__class__.__name__.lower():
+                cleaned[key] = str(value)
+            # Handle other complex types by converting to string
+            elif not isinstance(value, (str, int, float, bool, type(None))):
+                cleaned[key] = str(value)
+            else:
+                # Keep simple types as-is
+                cleaned[key] = value
+                
+        return cleaned
+    
+    def _clean_nested_data(self, data: Any) -> Any:
+        """
+        Recursively clean nested data structures.
         
-        # Handle missing values
-        df = self._handle_missing_values(df)
-        
-        # Detect and handle outliers
-        df = self._handle_outliers(df)
-        
-        # Convert back to list of dictionaries
-        return df.to_dict('records')
+        Args:
+            data: Nested data to clean
+            
+        Returns:
+            Cleaned data
+        """
+        if hasattr(data, '__class__') and data.__class__.__name__ == 'ObjectId':
+            return str(data)
+        elif isinstance(data, dict):
+            return {k: self._clean_nested_data(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._clean_nested_data(item) for item in data]
+        elif hasattr(data, '__class__') and 'datetime' in data.__class__.__name__.lower():
+            return str(data)
+        elif not isinstance(data, (str, int, float, bool, type(None))):
+            return str(data)
+        else:
+            return data
     
     def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """

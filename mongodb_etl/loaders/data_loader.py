@@ -123,8 +123,26 @@ class DataLoader:
         output_path = os.path.join(self.output_dir, f"{filename}.parquet")
         
         try:
-            # Convert data to Pandas DataFrame
-            df = pd.DataFrame(data)
+            # Clean data for parquet compatibility
+            cleaned_data = []
+            for doc in data:
+                cleaned_doc = {}
+                for key, value in doc.items():
+                    # Convert ObjectId and other complex types to strings
+                    if hasattr(value, '__class__') and value.__class__.__name__ == 'ObjectId':
+                        cleaned_doc[key] = str(value)
+                    elif isinstance(value, (dict, list)) and not self._is_simple_type(value):
+                        cleaned_doc[key] = str(value)
+                    elif hasattr(value, '__class__') and 'datetime' in value.__class__.__name__.lower():
+                        cleaned_doc[key] = str(value)
+                    elif not isinstance(value, (str, int, float, bool, type(None))):
+                        cleaned_doc[key] = str(value)
+                    else:
+                        cleaned_doc[key] = value
+                cleaned_data.append(cleaned_doc)
+            
+            # Convert cleaned data to Pandas DataFrame
+            df = pd.DataFrame(cleaned_data)
             
             # Write to Parquet
             df.to_parquet(output_path,
@@ -136,6 +154,24 @@ class DataLoader:
         except Exception as e:
             logger.error(f"Failed to save data to Parquet: {str(e)}")
             raise
+    
+    def _is_simple_type(self, value: Any) -> bool:
+        """
+        Check if a value contains only simple types that are parquet-compatible.
+        
+        Args:
+            value: Value to check
+            
+        Returns:
+            True if value contains only simple types
+        """
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return True
+        elif isinstance(value, list):
+            return all(isinstance(item, (str, int, float, bool, type(None))) for item in value)
+        elif isinstance(value, dict):
+            return all(isinstance(v, (str, int, float, bool, type(None))) for v in value.values())
+        return False
     
     def save_to_multiple_formats(self, data: List[Dict[str, Any]], 
                                filename: str, 
